@@ -4,7 +4,6 @@ import com.example.SynapseBackEnd.config.JwtService;
 import com.example.SynapseBackEnd.dto.LoginRequestDTO;
 import com.example.SynapseBackEnd.dto.TokenResponseDTO;
 import com.example.SynapseBackEnd.dto.UsuarioRequestDTO;
-import com.example.SynapseBackEnd.dto.UsuarioResponseDTO;
 import com.example.SynapseBackEnd.model.PerfilUsuario;
 import com.example.SynapseBackEnd.model.UsuarioModel;
 import com.example.SynapseBackEnd.service.UsuarioService;
@@ -23,7 +22,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/usuarios")
-public class Controller {
+public class UsuarioController {
 
     @Autowired
     private AuthenticationManager authenticationManager;
@@ -76,8 +75,11 @@ public class Controller {
     @PatchMapping("/{id}/perfil")
     public ResponseEntity<UsuarioModel> alterarPerfil(
             @PathVariable Long id,
-            @RequestParam PerfilUsuario novoPerfil){
-        UsuarioModel usuarioAtualizado = usuarioService.alterarPerfil(id, novoPerfil);
+            @RequestParam PerfilUsuario novoPerfil,
+            org.springframework.security.core.Authentication authentication){
+
+        String emailExecutor = authentication.getName();
+        UsuarioModel usuarioAtualizado = usuarioService.alterarPerfil(id, novoPerfil, emailExecutor);
         return ResponseEntity.ok(usuarioAtualizado);
     }
 }

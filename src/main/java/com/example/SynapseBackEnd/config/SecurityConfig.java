@@ -34,43 +34,9 @@ public class SecurityConfig {
     private UsuarioRepository usuarioRepository;
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-                .csrf(csrf -> csrf.disable())
-                .cors(cors -> cors.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        // Permite acesso a todos os caminhos de criação de conta e login
-                        .requestMatchers(HttpMethod.POST, "/api/usuarios", "/api/usuarios/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/usuarios/**").permitAll()
-
-                        //Apenas COORDENADOR pode alterar perfil dos usuarios
-                        .requestMatchers(HttpMethod.PATCH, "/api/usuarios/{id}/perfil").hasAllRoles("COORDENADOR")
-
-                        .anyRequest().authenticated()
-                )
-
-                .exceptionHandling(exception -> exception
-                        .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-
-                            String jsonResponse = "{\"mensagem\": \"Você não tem permissão para alterar o perfil de usuários.\"}";
-                            response.getWriter().write(jsonResponse);
-                        })
-                )
-
-                .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
-        return http.build();
-    }
-
-    @Bean
     public UserDetailsService userDetailsService() {
         return username -> usuarioRepository.findByEmail(username)
-                .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado com o e-mail: " + username));
+                .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado: " + username));
     }
 
     @Bean
@@ -88,5 +54,65 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        // 1. ENDPOINTS PÚBLICOS (Cadastro, Login e Erros internos do Spring)
+                        .requestMatchers(HttpMethod.POST, "/api/usuarios", "/api/usuarios/", "/api/usuarios/login").permitAll()
+                        .requestMatchers("/error").permitAll()
+
+                        // 2. REGRAS DE ALTERAÇÃO DE PERFIL
+                        .requestMatchers(HttpMethod.PATCH, "/api/usuarios/*/perfil").hasRole("COORDENADOR")
+
+                        // 3. REGRAS DE SALAS
+                        .requestMatchers(HttpMethod.POST, "/api/salas/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/salas/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/salas/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/salas/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.GET, "/api/salas/**").hasAnyRole("COORDENADOR", "PROFESSOR")
+
+                        // 4. REGRAS DO LABMAKER
+                        .requestMatchers(HttpMethod.POST, "/api/labmaker/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/labmaker/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/labmaker/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/labmaker/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.GET, "/api/labmaker/**").authenticated()
+
+                        // Regras de Agendamentos
+                        .requestMatchers(HttpMethod.POST, "/api/agendamentos").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/agendamentos/meus").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/agendamentos/ocupados/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/agendamentos").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/agendamentos/*/avaliar").hasRole("COORDENADOR")
+
+                        // 5. QUALQUER OUTRA REQUISIÇÃO
+                        .anyRequest().authenticated()
+                )
+                .exceptionHandling(exception -> exception
+                        // Trata falta de autenticação (401)
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                            response.getWriter().write("{\"mensagem\": \"Token ausente ou inválido. Acesso não autorizado.\"}");
+                        })
+                        // Trata falta de permissão/role (403)
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                            response.getWriter().write("{\"mensagem\": \"Você não tem permissão para realizar esta ação.\"}");
+                        })
+                )
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
     }
 }

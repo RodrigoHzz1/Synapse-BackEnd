@@ -28,11 +28,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
-        String path = request.getRequestURI();
-        String method = request.getMethod();
+        String path = request.getServletPath();
 
         // Não aplica o filtro JWT em requisições POST para rotas públicas (/api/usuarios e /api/usuarios/login)
-        return "POST".equalsIgnoreCase(method) && path.startsWith("/api/usuarios");
+        return path.startsWith("/api/usuarios") && !path.contains("/perfil");
     }
 
     @Override
@@ -71,4 +70,5 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
     }
+
 }

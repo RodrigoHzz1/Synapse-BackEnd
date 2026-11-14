@@ -67,4 +67,14 @@ public class AgendamentoController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
         return ResponseEntity.ok(agendamentoService.listarHorariosOcupadosLabMaker(labMakerId, data));
     }
+
+    @PatchMapping("/{id}/cancelar")
+    public ResponseEntity<AgendamentoResponseDTO> cancelar(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        String emailUsuario = authentication.getName();
+        AgendamentoResponseDTO response = agendamentoService.cancelar(id, emailUsuario);
+        return ResponseEntity.ok(response);
+    }
 }

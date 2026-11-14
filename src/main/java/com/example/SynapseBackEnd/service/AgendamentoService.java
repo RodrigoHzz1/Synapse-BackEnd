@@ -108,6 +108,33 @@ public class AgendamentoService {
         return AgendamentoResponseDTO.fromEntity(agendamentoRepository.save(agendamento));
     }
 
+    @Transactional
+    public AgendamentoResponseDTO cancelar(Long id, String emailUsuario) {
+        AgendamentoModel agendamento = agendamentoRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Agendamento não encontrado"));
+
+        UsuarioModel usuarioLogado = usuarioRepository.findByEmail(emailUsuario)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));
+
+        boolean isDono = agendamento.getUsuario().getId().equals(usuarioLogado.getId());
+        boolean isCoordenador = usuarioLogado.getPerfil() == PerfilUsuario.COORDENADOR;
+
+        if (!isDono && !isCoordenador) {
+            throw new AccessDeniedException("Você não tem permissão para cancelar este agendamento.");
+        }
+
+        if (agendamento.getStatus() == StatusAgendamento.REJEITADO ||
+                agendamento.getStatus() == StatusAgendamento.CANCELADO) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Não é possível cancelar um agendamento com status " + agendamento.getStatus() + "."
+            );
+        }
+
+        agendamento.setStatus(StatusAgendamento.CANCELADO);
+        return AgendamentoResponseDTO.fromEntity(agendamentoRepository.save(agendamento));
+    }
+
     public List<AgendamentoResponseDTO> listarMeusAgendamentos(String emailUsuario) {
         UsuarioModel usuario = usuarioRepository.findByEmail(emailUsuario)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));

@@ -1,6 +1,7 @@
-package com.example.SynapseBackEnd.config; // Ajuste para o seu pacote correto
+package com.example.SynapseBackEnd.config;
 
 import com.example.SynapseBackEnd.repository.UsuarioRepository;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,12 +17,13 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Autowired
-    private com.example.SynapseBackEnd.config.JwtService jwtService;
+    private JwtService jwtService;
 
     @Autowired
     private UsuarioRepository usuarioRepository;
@@ -30,7 +32,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getServletPath();
 
-        // Não aplica o filtro JWT em requisições POST para rotas públicas (/api/usuarios e /api/usuarios/login)
         return path.startsWith("/api/usuarios") && !path.contains("/perfil");
     }
 
@@ -42,33 +43,46 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userEmail;
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
-        userEmail = jwtService.extractUsername(jwt);
+        final String jwt = authHeader.substring(7);
 
-        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = usuarioRepository.findByEmail(userEmail)
-                    .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado com e-mail: " + userEmail));
+        try {
+            final String userEmail = jwtService.extractUsername(jwt);
 
-            if (jwtService.isTokenValid(jwt, userDetails)) {
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()
-                );
-                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = usuarioRepository.findByEmail(userEmail)
+                        .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado com e-mail: " + userEmail));
+
+                if (jwtService.isTokenValid(jwt, userDetails)) {
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+                    authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
+
+            filterChain.doFilter(request, response);
+
+        } catch (JwtException | UsernameNotFoundException ex) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write(String.format("""
+                {
+                  "timestamp": "%s",
+                  "status": 401,
+                  "erro": "Unauthorized",
+                  "mensagem": "L    ogin expirado faça login novamente.",
+                  "caminho": "%s"
+                }
+                """, LocalDateTime.now(), request.getRequestURI()));
         }
-
-        filterChain.doFilter(request, response);
     }
-
 }

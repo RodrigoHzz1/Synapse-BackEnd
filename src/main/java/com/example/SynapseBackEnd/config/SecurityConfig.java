@@ -91,7 +91,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/agendamentos").hasRole("COORDENADOR")
                         .requestMatchers(HttpMethod.PATCH, "/api/agendamentos/*/avaliar").hasRole("COORDENADOR")
 
-                        // 5. QUALQUER OUTRA REQUISIÇÃO
+                        // 5. REGRAS DE EQUIPAMENTOS
+                        .requestMatchers(HttpMethod.POST, "/api/equipamentos/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.PUT, "/api/equipamentos/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/equipamentos/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/equipamentos/**").hasRole("COORDENADOR")
+                        .requestMatchers(HttpMethod.GET, "/api/equipamentos/**").hasAnyRole("COORDENADOR", "PROFESSOR")
+
+                        // 6. QUALQUER OUTRA REQUISIÇÃO
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exception -> exception
